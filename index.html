@@ -551,13 +551,8 @@ function buildReceiverUI() {
             <!-- Folder picker -->
             <div class="card">
                 <div class="card-label">📁 Dossier de destination</div>
-                <div class="folder-row">
-                    <button class="folder-btn" id="folder-btn" onclick="pickFolder()">
-                        📂 Choisir un dossier
-                    </button>
-                    <span class="folder-hint" id="folder-hint">
-                        Aucun dossier — téléchargement automatique
-                    </span>
+                <div id="folder-container">
+                    <div style="color:var(--muted);font-size:.84rem;">Vérification…</div>
                 </div>
             </div>
 
@@ -625,16 +620,157 @@ function detectLanIP() {
     });
 }
 
-async function pickFolder() {
-    if (!('showDirectoryPicker' in window)) {
-        showMsg('info', 'ℹ️ Non supporté par ce navigateur — les fichiers seront téléchargés automatiquement.');
-        return;
-    }
+// ── IndexedDB — persist FileSystemDirectoryHandle ────────────
+// localStorage cannot store handles; IndexedDB can.
+function _openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open('tel-ordi', 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror   = e => reject(e.target.error);
+    });
+}
+async function saveHandleToDB(h) {
+    const db = await _openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').put(h, 'dir');
+        tx.oncomplete = resolve;
+        tx.onerror    = e => reject(e.target.error);
+    });
+}
+async function loadHandleFromDB() {
     try {
-        dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-        document.getElementById('folder-hint').textContent = '/' + dirHandle.name;
-        document.getElementById('folder-hint').className = 'folder-hint chosen';
-        document.getElementById('folder-btn').textContent = '📂 Changer de dossier';
+        const db = await _openDB();
+        return new Promise((resolve, reject) => {
+            const tx  = db.transaction('handles', 'readonly');
+            const req = tx.objectStore('handles').get('dir');
+            req.onsuccess = e => resolve(e.target.result || null);
+            req.onerror   = e => reject(e.target.error);
+        });
+    } catch { return null; }
+}
+async function clearHandleFromDB() {
+    try {
+        const db = await _openDB();
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction('handles', 'readwrite');
+            tx.objectStore('handles').delete('dir');
+            tx.oncomplete = resolve;
+            tx.onerror    = e => reject(e.target.error);
+        });
+    } catch {}
+}
+
+// ── Folder UI states ─────────────────────────────────────────
+function renderFolderNone() {
+    const c = document.getElementById('folder-container');
+    if (!c) return;
+    c.innerHTML = `
+        <div class="folder-row">
+            <button class="folder-btn" onclick="pickFolder()">📂 Choisir un dossier</button>
+            <span class="folder-hint">Aucun dossier — téléchargement automatique</span>
+        </div>`;
+}
+
+function renderFolderPicked(name, isRestored) {
+    const c = document.getElementById('folder-container');
+    if (!c) return;
+    c.innerHTML = `
+        <div>
+            <div class="folder-row">
+                <button class="folder-btn" onclick="pickFolder()">📂 Changer de dossier</button>
+                <span class="folder-hint chosen" style="display:flex;align-items:center;gap:5px;min-width:0;">
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">/${name}</span>
+                    <button onclick="clearSavedFolder()" title="Oublier ce dossier"
+                            style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.9rem;
+                                   line-height:1;padding:0;flex-shrink:0;"
+                            onmouseover="this.style.color='var(--error)'"
+                            onmouseout="this.style.color='var(--muted)'">✕</button>
+                </span>
+            </div>
+            ${isRestored
+                ? `<div style="font-size:.72rem;color:var(--success);margin-top:6px;">
+                       ✓ Dossier restauré depuis la session précédente
+                   </div>`
+                : ''}
+        </div>`;
+}
+
+function renderFolderResume(h) {
+    window._pendingHandle = h;
+    const c = document.getElementById('folder-container');
+    if (!c) return;
+    c.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="font-size:.82rem;color:var(--muted);">
+                Dossier enregistré :
+                <span style="font-family:monospace;color:var(--text);">/${h.name}</span>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="folder-btn" onclick="resumeFolder()">🔄 Reprendre l'accès</button>
+                <button class="folder-btn" style="opacity:.65;font-size:.82rem;" onclick="pickFolder()">
+                    📂 Choisir un autre
+                </button>
+            </div>
+        </div>`;
+}
+
+function renderFolderUnsupported() {
+    const c = document.getElementById('folder-container');
+    if (!c) return;
+    c.innerHTML = `
+        <p style="font-size:.82rem;color:var(--muted);line-height:1.6;margin:0;">
+            ℹ️ Sélection de dossier non disponible dans ce navigateur
+            (Chrome / Edge uniquement).<br>
+            Les fichiers seront téléchargés dans
+            <strong style="color:var(--text);">Téléchargements</strong>.
+        </p>`;
+}
+
+async function initFolderUI() {
+    if (!('showDirectoryPicker' in window)) { renderFolderUnsupported(); return; }
+
+    const saved = await loadHandleFromDB();
+    if (!saved) { renderFolderNone(); return; }
+
+    try {
+        const perm = await saved.queryPermission({ mode: 'readwrite' });
+        if (perm === 'granted') {
+            dirHandle = saved;
+            renderFolderPicked(saved.name, true);
+        } else {
+            // 'prompt' — needs a user gesture to call requestPermission
+            renderFolderResume(saved);
+        }
+    } catch {
+        renderFolderNone();
+    }
+}
+
+async function resumeFolder() {
+    const h = window._pendingHandle;
+    if (!h) return;
+    try {
+        const perm = await h.requestPermission({ mode: 'readwrite' });
+        if (perm === 'granted') { dirHandle = h; renderFolderPicked(h.name, true); }
+        else                    { renderFolderNone(); }
+    } catch { renderFolderNone(); }
+}
+
+async function clearSavedFolder() {
+    dirHandle = null;
+    window._pendingHandle = null;
+    await clearHandleFromDB();
+    renderFolderNone();
+}
+
+async function pickFolder() {
+    try {
+        const h = await window.showDirectoryPicker({ mode: 'readwrite' });
+        dirHandle = h;
+        await saveHandleToDB(h);
+        renderFolderPicked(h.name, false);
     } catch (e) {
         if (e.name !== 'AbortError') showMsg('error', '❌ Impossible d\'accéder au dossier : ' + e.message);
     }
@@ -816,6 +952,7 @@ function startReceiverPeer(customId) {
 
 function initReceiver() {
     buildReceiverUI();
+    initFolderUI();   // async — fills folder-container based on browser support + IndexedDB
     setStatus('wait', 'Initialisation…');
     startReceiverPeer(getPermId() || undefined);
 }
