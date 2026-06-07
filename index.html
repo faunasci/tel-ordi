@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>📡 Transfert de fichiers</title>
+    <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="tel-ordi">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="install_linux_icon_chromium/smartphone-icon.png">
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
@@ -564,18 +569,25 @@ function buildReceiverUI() {
                 </div>
             </div>
 
-            <!-- Linux install banner (shown only on Linux desktop) -->
-            <div class="card" id="linux-install-card" style="display:none;">
-                <div class="card-label">🖥️ Installer comme application</div>
+            <!-- PWA install banner (shown when browser offers install) -->
+            <div class="card" id="install-card" style="display:none;">
+                <div class="card-label">📲 Installer l'application</div>
                 <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;line-height:1.6;">
-                    Créez un lanceur sur votre bureau pour ouvrir cette app directement depuis Chromium, sans passer par le navigateur.
+                    Ajoutez cette app sur votre bureau pour l'ouvrir directement en un clic, comme une application native.
                 </p>
-                <button class="folder-btn" onclick="downloadInstallScript()" style="width:100%;justify-content:center;gap:8px;">
-                    ⬇️ Télécharger le script d'installation
+                <button onclick="installApp()" id="install-btn"
+                        style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;
+                               border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer;
+                               display:flex;align-items:center;justify-content:center;gap:8px;
+                               transition:background .2s;"
+                        onmouseover="this.style.background='var(--accent2)'"
+                        onmouseout="this.style.background='var(--accent)'">
+                    ⬇️ Installer l'application
                 </button>
-                <div id="install-hint" style="display:none;margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
-                    <div style="font-size:.74rem;color:var(--muted);margin-bottom:6px;">Exécutez ensuite dans un terminal :</div>
-                    <code style="font-family:monospace;font-size:.82rem;color:var(--text);">bash ~/Downloads/install-tel-ordi.sh</code>
+                <div id="install-success" style="display:none;margin-top:12px;padding:10px 14px;
+                     background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);
+                     border-radius:10px;font-size:.84rem;color:var(--success);">
+                    ✓ Application installée ! Elle apparaît dans votre menu d'applications.
                 </div>
             </div>
 
@@ -969,10 +981,6 @@ function initReceiver() {
     buildReceiverUI();
     initFolderUI();   // async — fills folder-container based on browser support + IndexedDB
     setStatus('wait', 'Initialisation…');
-    if (isLinuxDesktop()) {
-        const card = document.getElementById('linux-install-card');
-        if (card) card.style.display = 'block';
-    }
     startReceiverPeer(getPermId() || undefined);
 }
 
@@ -1277,85 +1285,47 @@ function initSender() {
 
 
 // ─────────────────────────────────────────────
-// LINUX INSTALL
+// PWA INSTALL
 // ─────────────────────────────────────────────
-function isLinuxDesktop() {
-    const ua = navigator.userAgent;
-    return /Linux/.test(ua) && !/Android/.test(ua);
+let deferredInstallPrompt = null;
+
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    const card = document.getElementById('install-card');
+    if (card) card.style.display = 'block';
+});
+
+window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    const card = document.getElementById('install-card');
+    if (card) card.style.display = 'none';
+});
+
+async function installApp() {
+    if (!deferredInstallPrompt) return;
+    const btn = document.getElementById('install-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Installation…'; }
+    try {
+        await deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        if (outcome === 'accepted') {
+            const success = document.getElementById('install-success');
+            if (success) success.style.display = 'block';
+            if (btn) btn.style.display = 'none';
+        } else {
+            if (btn) { btn.disabled = false; btn.innerHTML = '⬇️ Installer l\'application'; }
+        }
+    } catch {
+        if (btn) { btn.disabled = false; btn.innerHTML = '⬇️ Installer l\'application'; }
+    }
 }
 
-function downloadInstallScript() {
-    const appUrl = 'https://faunasci.github.io/tel-ordi/';
-    const iconUrl = 'https://faunasci.github.io/tel-ordi/install_linux_icon_chromium/smartphone-icon.png';
-
-    const script = `#!/bin/bash
-set -e
-
-ICON_NAME="smartphone-icon"
-ICON_FILE="\${ICON_NAME}.png"
-DESKTOP_NAME="tel-ordi"
-APP_URL="${appUrl}"
-ICON_URL="${iconUrl}"
-ICONS_DIR="\${HOME}/.local/share/icons"
-APPS_DIR="\${HOME}/.local/share/applications"
-
-echo ""
-echo "╔═══════════════════════════════════════╗"
-echo "║   Installation de l'icône tel-ordi    ║"
-echo "╚═══════════════════════════════════════╝"
-echo ""
-
-mkdir -p "\${ICONS_DIR}" "\${APPS_DIR}"
-
-echo "→ Téléchargement de l'icône..."
-if command -v wget &>/dev/null; then
-    wget -q --show-progress "\${ICON_URL}" -O "\${ICONS_DIR}/\${ICON_FILE}"
-elif command -v curl &>/dev/null; then
-    curl -L --progress-bar "\${ICON_URL}" -o "\${ICONS_DIR}/\${ICON_FILE}"
-else
-    echo "✗ Erreur : wget ou curl est requis."
-    exit 1
-fi
-
-cat > "\${APPS_DIR}/\${DESKTOP_NAME}.desktop" <<DESKTOP
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=tel-ordi
-Comment=Transfert de fichiers téléphone ↔ ordinateur
-Exec=chromium --app=\${APP_URL}
-Icon=\${ICON_NAME}
-Terminal=false
-Categories=Network;WebBrowser;
-Keywords=transfer;fichier;phone;smartphone;
-StartupWMClass=chromium
-DESKTOP
-
-chmod 644 "\${APPS_DIR}/\${DESKTOP_NAME}.desktop"
-
-if command -v update-desktop-database &>/dev/null; then
-    update-desktop-database "\${APPS_DIR}" 2>/dev/null || true
-fi
-
-echo ""
-echo "✓ Installation réussie !"
-echo "  Icône   → \${ICONS_DIR}/\${ICON_FILE}"
-echo "  Lanceur → \${APPS_DIR}/\${DESKTOP_NAME}.desktop"
-echo ""
-echo "L'application apparaîtra dans votre menu d'applications."
-`;
-
-    const blob = new Blob([script], { type: 'text/x-shellscript' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'install-tel-ordi.sh';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-
-    const hint = document.getElementById('install-hint');
-    if (hint) hint.style.display = 'block';
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
 }
 
 // ─────────────────────────────────────────────

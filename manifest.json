@@ -1,0 +1,18 @@
+{
+  "name": "tel-ordi — Transfert de fichiers",
+  "short_name": "tel-ordi",
+  "description": "Transfert de fichiers téléphone ↔ ordinateur via WebRTC",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "install_linux_icon_chromium/smartphone-icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
