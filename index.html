@@ -569,13 +569,13 @@ function buildReceiverUI() {
                 </div>
             </div>
 
-            <!-- PWA install banner (shown when browser offers install) -->
+            <!-- Linux install (shown on Linux desktop only) -->
             <div class="card" id="install-card" style="display:none;">
-                <div class="card-label">📲 Installer l'application</div>
+                <div class="card-label">🖥️ Installer sur le bureau</div>
                 <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;line-height:1.6;">
-                    Ajoutez cette app sur votre bureau pour l'ouvrir directement en un clic, comme une application native.
+                    Créez un raccourci avec l'icône pour ouvrir cette app directement depuis votre bureau ou menu.
                 </p>
-                <button onclick="installApp()" id="install-btn"
+                <button onclick="downloadDesktopInstaller()" id="install-btn"
                         style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;
                                border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer;
                                display:flex;align-items:center;justify-content:center;gap:8px;
@@ -584,10 +584,30 @@ function buildReceiverUI() {
                         onmouseout="this.style.background='var(--accent)'">
                     ⬇️ Installer l'application
                 </button>
-                <div id="install-success" style="display:none;margin-top:12px;padding:10px 14px;
-                     background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);
-                     border-radius:10px;font-size:.84rem;color:var(--success);">
-                    ✓ Application installée ! Elle apparaît dans votre menu d'applications.
+                <div id="install-guide" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+                    <div style="font-size:.82rem;color:var(--success);font-weight:600;margin-bottom:12px;">
+                        ✓ Fichier téléchargé !
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:10px;">
+                        <div style="display:flex;align-items:center;gap:12px;font-size:.85rem;">
+                            <span style="width:26px;height:26px;border-radius:50%;background:var(--accent);
+                                         color:#fff;display:flex;align-items:center;justify-content:center;
+                                         font-size:.75rem;font-weight:700;flex-shrink:0;">1</span>
+                            <span>Ouvrez votre dossier <strong style="color:var(--text);">Téléchargements</strong></span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;font-size:.85rem;">
+                            <span style="width:26px;height:26px;border-radius:50%;background:var(--accent);
+                                         color:#fff;display:flex;align-items:center;justify-content:center;
+                                         font-size:.75rem;font-weight:700;flex-shrink:0;">2</span>
+                            <span>Double-cliquez sur <strong style="color:var(--text);">Installer-tel-ordi.desktop</strong></span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:12px;font-size:.85rem;">
+                            <span style="width:26px;height:26px;border-radius:50%;background:var(--accent);
+                                         color:#fff;display:flex;align-items:center;justify-content:center;
+                                         font-size:.75rem;font-weight:700;flex-shrink:0;">3</span>
+                            <span>Cliquez <strong style="color:var(--text);">Exécuter</strong> — l'icône apparaît dans votre menu !</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -981,6 +1001,10 @@ function initReceiver() {
     buildReceiverUI();
     initFolderUI();   // async — fills folder-container based on browser support + IndexedDB
     setStatus('wait', 'Initialisation…');
+    if (isLinuxDesktop()) {
+        const card = document.getElementById('install-card');
+        if (card) card.style.display = 'block';
+    }
     startReceiverPeer(getPermId() || undefined);
 }
 
@@ -1285,41 +1309,39 @@ function initSender() {
 
 
 // ─────────────────────────────────────────────
-// PWA INSTALL
+// LINUX DESKTOP INSTALL
 // ─────────────────────────────────────────────
-let deferredInstallPrompt = null;
+function isLinuxDesktop() {
+    return /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent);
+}
 
-window.addEventListener('beforeinstallprompt', e => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    const card = document.getElementById('install-card');
-    if (card) card.style.display = 'block';
-});
+function downloadDesktopInstaller() {
+    const scriptUrl = 'https://faunasci.github.io/tel-ordi/install_linux_icon_chromium/install.sh';
+    const content = [
+        '[Desktop Entry]',
+        'Version=1.0',
+        'Type=Application',
+        'Name=Installer tel-ordi',
+        "Comment=Installe l'icône et le lanceur tel-ordi",
+        'Exec=bash -c "wget -qO- ' + scriptUrl + ' | bash; echo; read -p \'Appuyez sur Entree pour fermer...\'"',
+        'Terminal=true',
+        'Icon=system-software-install',
+        'Categories=System;',
+        ''
+    ].join('\n');
 
-window.addEventListener('appinstalled', () => {
-    deferredInstallPrompt = null;
-    const card = document.getElementById('install-card');
-    if (card) card.style.display = 'none';
-});
+    const blob = new Blob([content], { type: 'application/x-desktop' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Installer-tel-ordi.desktop';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
 
-async function installApp() {
-    if (!deferredInstallPrompt) return;
+    document.getElementById('install-guide').style.display = 'block';
     const btn = document.getElementById('install-btn');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Installation…'; }
-    try {
-        await deferredInstallPrompt.prompt();
-        const { outcome } = await deferredInstallPrompt.userChoice;
-        deferredInstallPrompt = null;
-        if (outcome === 'accepted') {
-            const success = document.getElementById('install-success');
-            if (success) success.style.display = 'block';
-            if (btn) btn.style.display = 'none';
-        } else {
-            if (btn) { btn.disabled = false; btn.innerHTML = '⬇️ Installer l\'application'; }
-        }
-    } catch {
-        if (btn) { btn.disabled = false; btn.innerHTML = '⬇️ Installer l\'application'; }
-    }
+    if (btn) btn.style.opacity = '0.6';
 }
 
 if ('serviceWorker' in navigator) {
