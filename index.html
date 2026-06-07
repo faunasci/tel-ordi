@@ -586,11 +586,19 @@ function buildReceiverUI() {
                             onmouseout="this.style.background='var(--accent)'">
                         ⬇️ Installer l'application
                     </button>
+                    <!-- shown if app already installed (prompt never fires) -->
+                    <div id="inst-already-note" style="display:none;margin-top:10px;padding:9px 12px;
+                         background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);
+                         border-radius:9px;font-size:.81rem;color:var(--accent2);line-height:1.6;">
+                        ℹ️ App déjà installée — le navigateur affiche
+                        <strong>« Ouvrir dans l'app »</strong> en haut.
+                        Cliquez dessus pour l'ouvrir, ou corrigez le nom ci-dessous.
+                    </div>
                 </div>
 
-                <!-- Step 1 : after PWA install — optional rename -->
+                <!-- Rename section — always visible on Linux -->
                 <div id="inst-fixname" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
-                    <div style="font-size:.83rem;color:var(--success);font-weight:600;margin-bottom:10px;">✓ Application installée !</div>
+                    <div style="font-size:.83rem;color:var(--muted);font-weight:600;margin-bottom:10px;">✏️ Corriger le nom du fichier lanceur</div>
                     <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px;line-height:1.6;">
                         <strong style="color:var(--text);">Optionnel</strong> — Renommer le fichier lanceur
                         de <code style="font-size:.74rem;">chrome-…-Default.desktop</code>
@@ -1010,10 +1018,31 @@ function initReceiver() {
     buildReceiverUI();
     initFolderUI();   // async — fills folder-container based on browser support + IndexedDB
     setStatus('wait', 'Initialisation…');
+
     if (isLinuxDesktop()) {
-        const card = document.getElementById('install-card');
-        if (card) card.style.display = 'block';
+        document.getElementById('install-card').style.display = 'block';
+
+        // Always show the "fix name" section — useful whether the app is newly or
+        // previously installed (old hash-named PWA already present).
+        document.getElementById('inst-fixname').style.display = 'block';
+
+        // If already running in standalone (PWA window): hide the install button.
+        if (window.matchMedia('(display-mode: standalone)').matches) {
+            document.getElementById('inst-initial').style.display = 'none';
+        } else {
+            // If beforeinstallprompt hasn't fired after 2 s, the app is already
+            // installed → disable the button and show an explanatory note.
+            setTimeout(() => {
+                if (!desktopDeferredPrompt) {
+                    const btn = document.getElementById('inst-install-btn');
+                    if (btn) { btn.disabled = true; btn.style.opacity = '.45'; }
+                    const note = document.getElementById('inst-already-note');
+                    if (note) note.style.display = 'block';
+                }
+            }, 2000);
+        }
     }
+
     startReceiverPeer(getPermId() || undefined);
 }
 
@@ -1103,8 +1132,11 @@ function buildSenderUI() {
                 <div class="card" style="border-color:rgba(99,102,241,.4);">
                     <div class="card-label">📲 Raccourci sur votre téléphone</div>
                     <div id="android-install-ui">
-                        <p style="font-size:.84rem;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+                        <p style="font-size:.84rem;color:var(--muted);margin-bottom:8px;line-height:1.5;">
                             Ajoutez un raccourci sur votre écran d'accueil pour lancer cette app directement.
+                        </p>
+                        <p style="font-size:.76rem;color:var(--warning);margin-bottom:12px;line-height:1.5;">
+                            ⚠️ Pour que l'icône rouvre directement sur l'ordinateur, activez d'abord le <strong>lien permanent</strong> sur l'écran de l'ordinateur.
                         </p>
                         <button onclick="mobileInstallApp()"
                                 style="width:100%;padding:12px;background:var(--accent);color:#fff;border:none;
@@ -1330,7 +1362,30 @@ function sendOneFile(file, onProgress) {
     });
 }
 
+function updateManifestForSender() {
+    // Override start_url so the installed phone icon reopens THIS sender URL
+    // (works reliably only when the receiver uses a permanent link).
+    const iconBase = new URL('install_linux_icon_chromium/smartphone-icon.png', location.href).href;
+    const manifest = {
+        name: 'tel-ordi — Transfert de fichiers',
+        short_name: 'tel-ordi',
+        start_url: location.href,   // ← current ?peer=ID URL
+        scope: location.origin + location.pathname,
+        display: 'standalone',
+        background_color: '#0a0a0f',
+        theme_color: '#6366f1',
+        icons: [
+            { src: iconBase, sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: iconBase, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+    const link = document.querySelector('link[rel="manifest"]');
+    if (link) link.href = URL.createObjectURL(blob);
+}
+
 function initSender() {
+    updateManifestForSender();   // set start_url to current sender URL before install prompt
     buildSenderConnecting();
     setStatus('wait', 'Connexion…');
 
@@ -1378,10 +1433,20 @@ function isLinuxDesktop() {
 }
 
 let desktopDeferredPrompt = null;
+let mobileDeferredPrompt  = null;   // same event, stored for mobileInstallApp()
 
+// Single listener handles both desktop and mobile install prompts
 window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     desktopDeferredPrompt = e;
+    mobileDeferredPrompt  = e;
+
+    // Re-enable the desktop install button if it was disabled by the timeout
+    const btn  = document.getElementById('inst-install-btn');
+    const note = document.getElementById('inst-already-note');
+    if (btn)  { btn.disabled = false; btn.style.opacity = '1'; }
+    if (note) note.style.display = 'none';
+
     // Show Android mobile install banner if on phone
     if (isMobile() && isAndroid()) {
         const card = document.getElementById('mobile-install-card');
@@ -1391,14 +1456,20 @@ window.addEventListener('beforeinstallprompt', e => {
 
 window.addEventListener('appinstalled', () => {
     desktopDeferredPrompt = null;
-    // Show post-install rename option
+    mobileDeferredPrompt  = null;
     document.getElementById('inst-initial').style.display = 'none';
-    const fix = document.getElementById('inst-fixname');
-    if (fix) fix.style.display = 'block';
+    document.getElementById('inst-fixname').style.display = 'block';
+    const card = document.getElementById('mobile-install-card');
+    if (card) card.style.display = 'none';
 });
 
 async function pwaBrowserInstall() {
-    if (!desktopDeferredPrompt) return;
+    if (!desktopDeferredPrompt) {
+        // Prompt not available — app already installed or not on HTTPS
+        const note = document.getElementById('inst-already-note');
+        if (note) note.style.display = 'block';
+        return;
+    }
     const btn = document.getElementById('inst-install-btn');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Installation…'; }
     try {
@@ -1465,12 +1536,8 @@ async function fixDesktopName() {
 // ─────────────────────────────────────────────
 // MOBILE HOME-SCREEN INSTALL
 // ─────────────────────────────────────────────
-let mobileDeferredPrompt = null;
-
-// Reuse the same beforeinstallprompt for mobile
-window.addEventListener('beforeinstallprompt', e => {
-    mobileDeferredPrompt = e; // also stored here for mobileInstallApp()
-}, { capture: true });
+// mobileDeferredPrompt is declared and populated in the single
+// beforeinstallprompt listener above (shared with desktop).
 
 function isMobile()  { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 function isIOS()     { return /iPhone|iPad|iPod/i.test(navigator.userAgent); }
