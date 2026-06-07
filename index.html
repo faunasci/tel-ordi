@@ -1011,15 +1011,12 @@ function initReceiver() {
     initFolderUI();   // async — fills folder-container based on browser support + IndexedDB
     setStatus('wait', 'Initialisation…');
 
-    if (isLinuxDesktop()) {
-        // Already running as installed PWA → nothing to show, keep UI clean
-        if (window.matchMedia('(display-mode: standalone)').matches) return;
-
+    if (isLinuxDesktop() && !window.matchMedia('(display-mode: standalone)').matches) {
+        // Show install card only when NOT already running as a PWA window
         document.getElementById('install-card').style.display = 'block';
         document.getElementById('inst-fixname').style.display = 'block';
 
-        // After 2 s: if beforeinstallprompt still hasn't fired the app is
-        // already installed → hide the install button, keep only the rename section
+        // After 2 s without a prompt → app already installed, hide install button
         setTimeout(() => {
             if (!desktopDeferredPrompt) {
                 document.getElementById('inst-initial').style.display = 'none';
