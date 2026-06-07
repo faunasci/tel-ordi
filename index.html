@@ -572,41 +572,50 @@ function buildReceiverUI() {
             <!-- Linux install (shown on Linux desktop only) -->
             <div class="card" id="install-card" style="display:none;">
                 <div class="card-label">🖥️ Installer sur le bureau</div>
-                <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;line-height:1.6;">
-                    Créez un raccourci avec l'icône pour ouvrir cette app directement depuis votre bureau ou menu.
-                </p>
-                <button onclick="downloadDesktopInstaller()" id="install-btn"
-                        style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;
-                               border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer;
-                               display:flex;align-items:center;justify-content:center;gap:8px;
-                               transition:background .2s;"
-                        onmouseover="this.style.background='var(--accent2)'"
-                        onmouseout="this.style.background='var(--accent)'">
-                    ⬇️ Installer l'application
-                </button>
-                <div id="install-guide" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
-                    <div style="font-size:.82rem;color:var(--success);font-weight:600;margin-bottom:12px;">
-                        ✓ Fichier téléchargé !
+
+                <!-- Step 0 : install button -->
+                <div id="inst-initial">
+                    <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+                        Ajoutez cette app dans votre menu pour l'ouvrir en un clic, comme une application native.
+                    </p>
+                    <button onclick="pwaBrowserInstall()" id="inst-install-btn"
+                            style="width:100%;padding:13px;background:var(--accent);color:#fff;border:none;
+                                   border-radius:12px;font-size:.95rem;font-weight:600;cursor:pointer;
+                                   display:flex;align-items:center;justify-content:center;gap:8px;transition:background .2s;"
+                            onmouseover="this.style.background='var(--accent2)'"
+                            onmouseout="this.style.background='var(--accent)'">
+                        ⬇️ Installer l'application
+                    </button>
+                </div>
+
+                <!-- Step 1 : after PWA install — optional rename -->
+                <div id="inst-fixname" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
+                    <div style="font-size:.83rem;color:var(--success);font-weight:600;margin-bottom:10px;">✓ Application installée !</div>
+                    <p style="font-size:.82rem;color:var(--muted);margin-bottom:12px;line-height:1.6;">
+                        <strong style="color:var(--text);">Optionnel</strong> — Renommer le fichier lanceur
+                        de <code style="font-size:.74rem;">chrome-…-Default.desktop</code>
+                        en <code style="font-size:.74rem;color:var(--success);">tel-ordi.desktop</code>
+                    </p>
+                    <div id="fixname-hint" style="display:none;margin-bottom:12px;padding:11px 13px;
+                         background:var(--surface2);border:1px solid var(--border);border-radius:9px;
+                         font-size:.8rem;color:var(--muted);line-height:1.8;">
+                        Dans la fenêtre qui s'ouvre :<br>
+                        Appuyez <kbd style="background:var(--border);padding:1px 5px;border-radius:4px;">Ctrl</kbd>+<kbd style="background:var(--border);padding:1px 5px;border-radius:4px;">L</kbd>
+                        → tapez : <code style="color:var(--accent2);">~/.local/share/applications</code><br>
+                        → Appuyez <kbd style="background:var(--border);padding:1px 5px;border-radius:4px;">Entrée</kbd> → Sélectionner
                     </div>
-                    <div style="display:flex;flex-direction:column;gap:10px;">
-                        <div style="display:flex;align-items:center;gap:12px;font-size:.85rem;">
-                            <span style="width:26px;height:26px;border-radius:50%;background:var(--accent);
-                                         color:#fff;display:flex;align-items:center;justify-content:center;
-                                         font-size:.75rem;font-weight:700;flex-shrink:0;">1</span>
-                            <span>Ouvrez votre dossier <strong style="color:var(--text);">Téléchargements</strong></span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:12px;font-size:.85rem;">
-                            <span style="width:26px;height:26px;border-radius:50%;background:var(--accent);
-                                         color:#fff;display:flex;align-items:center;justify-content:center;
-                                         font-size:.75rem;font-weight:700;flex-shrink:0;">2</span>
-                            <span>Double-cliquez sur <strong style="color:var(--text);">Installer-tel-ordi.desktop</strong></span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:12px;font-size:.85rem;">
-                            <span style="width:26px;height:26px;border-radius:50%;background:var(--accent);
-                                         color:#fff;display:flex;align-items:center;justify-content:center;
-                                         font-size:.75rem;font-weight:700;flex-shrink:0;">3</span>
-                            <span>Cliquez <strong style="color:var(--text);">Exécuter</strong> — l'icône apparaît dans votre menu !</span>
-                        </div>
+                    <button onclick="fixDesktopName()" id="inst-fix-btn"
+                            style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);
+                                   color:var(--text);border-radius:10px;cursor:pointer;font-size:.85rem;
+                                   font-weight:500;transition:all .2s;"
+                            onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'"
+                            onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text)'">
+                        ✏️ Corriger le nom du fichier
+                    </button>
+                    <div id="fixname-done" style="display:none;margin-top:10px;padding:9px 12px;
+                         background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);
+                         border-radius:9px;font-size:.82rem;color:var(--success);">
+                        ✓ Renommé en tel-ordi.desktop !
                     </div>
                 </div>
             </div>
@@ -1088,6 +1097,46 @@ function buildSenderUI() {
             </div>
 
             <div class="status-msg" id="msg"></div>
+
+            <!-- Mobile home-screen install -->
+            <div id="mobile-install-card" style="display:none;margin-top:4px;">
+                <div class="card" style="border-color:rgba(99,102,241,.4);">
+                    <div class="card-label">📲 Raccourci sur votre téléphone</div>
+                    <div id="android-install-ui">
+                        <p style="font-size:.84rem;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+                            Ajoutez un raccourci sur votre écran d'accueil pour lancer cette app directement.
+                        </p>
+                        <button onclick="mobileInstallApp()"
+                                style="width:100%;padding:12px;background:var(--accent);color:#fff;border:none;
+                                       border-radius:11px;font-size:.92rem;font-weight:600;cursor:pointer;
+                                       transition:background .2s;"
+                                onmouseover="this.style.background='var(--accent2)'"
+                                onmouseout="this.style.background='var(--accent)'">
+                            ⊕ Ajouter à l'écran d'accueil
+                        </button>
+                    </div>
+                    <div id="ios-install-ui" style="display:none;">
+                        <p style="font-size:.84rem;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+                            Pour ajouter cette app à votre écran d'accueil :
+                        </p>
+                        <div style="display:flex;flex-direction:column;gap:10px;font-size:.85rem;">
+                            <div style="display:flex;gap:12px;align-items:center;">
+                                <span style="background:var(--accent);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0;">1</span>
+                                <span>Appuyez sur <strong>Partager</strong> ⬆ en bas de Safari</span>
+                            </div>
+                            <div style="display:flex;gap:12px;align-items:center;">
+                                <span style="background:var(--accent);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0;">2</span>
+                                <span>Sélectionnez <strong>"Sur l'écran d'accueil"</strong></span>
+                            </div>
+                            <div style="display:flex;gap:12px;align-items:center;">
+                                <span style="background:var(--accent);color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:700;flex-shrink:0;">3</span>
+                                <span>Appuyez sur <strong>Ajouter</strong></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
     `;
 
@@ -1099,6 +1148,19 @@ function buildSenderUI() {
 
     wireDrop('dz-photos', files => addPhotos(files));
     wireDrop('dz-docs',   files => addDocs(files));
+
+    // Mobile install detection
+    if (isMobile()) {
+        const card = document.getElementById('mobile-install-card');
+        if (card) card.style.display = 'block';
+        if (isIOS() && !navigator.standalone) {
+            document.getElementById('android-install-ui').style.display = 'none';
+            document.getElementById('ios-install-ui').style.display   = 'block';
+        } else if (!mobileDeferredPrompt) {
+            // Android: beforeinstallprompt fires later — card shown when it fires
+            card.style.display = 'none';
+        }
+    }
 }
 
 function wireDrop(id, handler) {
@@ -1309,39 +1371,120 @@ function initSender() {
 
 
 // ─────────────────────────────────────────────
-// LINUX DESKTOP INSTALL
+// LINUX DESKTOP INSTALL  (PWA + optional rename)
 // ─────────────────────────────────────────────
 function isLinuxDesktop() {
     return /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent);
 }
 
-function downloadDesktopInstaller() {
-    const scriptUrl = 'https://faunasci.github.io/tel-ordi/install_linux_icon_chromium/install.sh';
-    const content = [
-        '[Desktop Entry]',
-        'Version=1.0',
-        'Type=Application',
-        'Name=Installer tel-ordi',
-        "Comment=Installe l'icône et le lanceur tel-ordi",
-        'Exec=bash -c "wget -qO- ' + scriptUrl + ' | bash; echo; read -p \'Appuyez sur Entree pour fermer...\'"',
-        'Terminal=true',
-        'Icon=system-software-install',
-        'Categories=System;',
-        ''
-    ].join('\n');
+let desktopDeferredPrompt = null;
 
-    const blob = new Blob([content], { type: 'application/x-desktop' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'Installer-tel-ordi.desktop';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    desktopDeferredPrompt = e;
+    // Show Android mobile install banner if on phone
+    if (isMobile() && isAndroid()) {
+        const card = document.getElementById('mobile-install-card');
+        if (card) card.style.display = 'block';
+    }
+});
 
-    document.getElementById('install-guide').style.display = 'block';
-    const btn = document.getElementById('install-btn');
-    if (btn) btn.style.opacity = '0.6';
+window.addEventListener('appinstalled', () => {
+    desktopDeferredPrompt = null;
+    // Show post-install rename option
+    document.getElementById('inst-initial').style.display = 'none';
+    const fix = document.getElementById('inst-fixname');
+    if (fix) fix.style.display = 'block';
+});
+
+async function pwaBrowserInstall() {
+    if (!desktopDeferredPrompt) return;
+    const btn = document.getElementById('inst-install-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Installation…'; }
+    try {
+        await desktopDeferredPrompt.prompt();
+        const { outcome } = await desktopDeferredPrompt.userChoice;
+        desktopDeferredPrompt = null;
+        if (outcome !== 'accepted' && btn) {
+            btn.disabled = false;
+            btn.innerHTML = '⬇️ Installer l\'application';
+        }
+    } catch {
+        if (btn) { btn.disabled = false; btn.innerHTML = '⬇️ Installer l\'application'; }
+    }
+}
+
+async function fixDesktopName() {
+    const hint = document.getElementById('fixname-hint');
+    const done = document.getElementById('fixname-done');
+    const btn  = document.getElementById('inst-fix-btn');
+    if (hint) hint.style.display = 'block';
+    if (btn)  btn.disabled = true;
+    try {
+        const dir = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'home' });
+        if (hint) hint.style.display = 'none';
+
+        // Find the Chromium PWA .desktop file for this app
+        let found = null;
+        for await (const [name, handle] of dir.entries()) {
+            if (!name.startsWith('chrome-') || !name.endsWith('-Default.desktop')) continue;
+            try {
+                const text = await (await handle.getFile()).text();
+                if (text.includes('faunasci.github.io/tel-ordi')) {
+                    found = { name, text };
+                    break;
+                }
+            } catch { /* skip unreadable files */ }
+        }
+
+        if (!found) {
+            if (btn) btn.disabled = false;
+            showMsg('error', '❌ Fichier PWA introuvable dans ce dossier.');
+            return;
+        }
+
+        // Write tel-ordi.desktop (keep original content — icon reference stays valid)
+        const newFh = await dir.getFileHandle('tel-ordi.desktop', { create: true });
+        const wr    = await newFh.createWritable();
+        await wr.write(found.text.replace(/^Name=.*/m, 'Name=tel-ordi'));
+        await wr.close();
+
+        // Remove the old chrome-HASH file
+        await dir.removeEntry(found.name);
+
+        if (btn)  btn.style.display = 'none';
+        if (done) done.style.display = 'block';
+
+    } catch (e) {
+        if (hint) hint.style.display = 'none';
+        if (btn)  btn.disabled = false;
+        if (e.name !== 'AbortError') showMsg('error', '❌ ' + e.message);
+    }
+}
+
+// ─────────────────────────────────────────────
+// MOBILE HOME-SCREEN INSTALL
+// ─────────────────────────────────────────────
+let mobileDeferredPrompt = null;
+
+// Reuse the same beforeinstallprompt for mobile
+window.addEventListener('beforeinstallprompt', e => {
+    mobileDeferredPrompt = e; // also stored here for mobileInstallApp()
+}, { capture: true });
+
+function isMobile()  { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
+function isIOS()     { return /iPhone|iPad|iPod/i.test(navigator.userAgent); }
+function isAndroid() { return /Android/i.test(navigator.userAgent); }
+
+async function mobileInstallApp() {
+    if (!mobileDeferredPrompt) return;
+    await mobileDeferredPrompt.prompt();
+    const { outcome } = await mobileDeferredPrompt.userChoice;
+    mobileDeferredPrompt = null;
+    if (outcome === 'accepted') {
+        const card = document.getElementById('mobile-install-card');
+        if (card) card.style.display = 'none';
+    }
 }
 
 if ('serviceWorker' in navigator) {
