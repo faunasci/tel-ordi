@@ -586,14 +586,6 @@ function buildReceiverUI() {
                             onmouseout="this.style.background='var(--accent)'">
                         ⬇️ Installer l'application
                     </button>
-                    <!-- shown if app already installed (prompt never fires) -->
-                    <div id="inst-already-note" style="display:none;margin-top:10px;padding:9px 12px;
-                         background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);
-                         border-radius:9px;font-size:.81rem;color:var(--accent2);line-height:1.6;">
-                        ℹ️ App déjà installée — le navigateur affiche
-                        <strong>« Ouvrir dans l'app »</strong> en haut.
-                        Cliquez dessus pour l'ouvrir, ou corrigez le nom ci-dessous.
-                    </div>
                 </div>
 
                 <!-- Rename section — always visible on Linux -->
@@ -1020,27 +1012,19 @@ function initReceiver() {
     setStatus('wait', 'Initialisation…');
 
     if (isLinuxDesktop()) {
-        document.getElementById('install-card').style.display = 'block';
+        // Already running as installed PWA → nothing to show, keep UI clean
+        if (window.matchMedia('(display-mode: standalone)').matches) return;
 
-        // Always show the "fix name" section — useful whether the app is newly or
-        // previously installed (old hash-named PWA already present).
+        document.getElementById('install-card').style.display = 'block';
         document.getElementById('inst-fixname').style.display = 'block';
 
-        // If already running in standalone (PWA window): hide the install button.
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-            document.getElementById('inst-initial').style.display = 'none';
-        } else {
-            // If beforeinstallprompt hasn't fired after 2 s, the app is already
-            // installed → disable the button and show an explanatory note.
-            setTimeout(() => {
-                if (!desktopDeferredPrompt) {
-                    const btn = document.getElementById('inst-install-btn');
-                    if (btn) { btn.disabled = true; btn.style.opacity = '.45'; }
-                    const note = document.getElementById('inst-already-note');
-                    if (note) note.style.display = 'block';
-                }
-            }, 2000);
-        }
+        // After 2 s: if beforeinstallprompt still hasn't fired the app is
+        // already installed → hide the install button, keep only the rename section
+        setTimeout(() => {
+            if (!desktopDeferredPrompt) {
+                document.getElementById('inst-initial').style.display = 'none';
+            }
+        }, 2000);
     }
 
     startReceiverPeer(getPermId() || undefined);
@@ -1441,11 +1425,11 @@ window.addEventListener('beforeinstallprompt', e => {
     desktopDeferredPrompt = e;
     mobileDeferredPrompt  = e;
 
-    // Re-enable the desktop install button if it was disabled by the timeout
-    const btn  = document.getElementById('inst-install-btn');
-    const note = document.getElementById('inst-already-note');
-    if (btn)  { btn.disabled = false; btn.style.opacity = '1'; }
-    if (note) note.style.display = 'none';
+    // Restore install button in case it was hidden by the 2 s timeout
+    const initial = document.getElementById('inst-initial');
+    if (initial) initial.style.display = 'block';
+    const btn = document.getElementById('inst-install-btn');
+    if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
 
     // Show Android mobile install banner if on phone
     if (isMobile() && isAndroid()) {
@@ -1464,12 +1448,7 @@ window.addEventListener('appinstalled', () => {
 });
 
 async function pwaBrowserInstall() {
-    if (!desktopDeferredPrompt) {
-        // Prompt not available — app already installed or not on HTTPS
-        const note = document.getElementById('inst-already-note');
-        if (note) note.style.display = 'block';
-        return;
-    }
+    if (!desktopDeferredPrompt) return;
     const btn = document.getElementById('inst-install-btn');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Installation…'; }
     try {
