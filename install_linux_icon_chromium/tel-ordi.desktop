@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=tel-ordi
+Comment=tel-ordi
+Exec=chromium --app=https://faunasci.github.io/tel-ordi/
+Icon=smartphone-icon
+Terminal=false
+Categories=Network;WebBrowser;
+StartupWMClass=chromium

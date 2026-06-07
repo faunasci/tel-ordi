@@ -564,6 +564,21 @@ function buildReceiverUI() {
                 </div>
             </div>
 
+            <!-- Linux install banner (shown only on Linux desktop) -->
+            <div class="card" id="linux-install-card" style="display:none;">
+                <div class="card-label">🖥️ Installer comme application</div>
+                <p style="font-size:.84rem;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+                    Créez un lanceur sur votre bureau pour ouvrir cette app directement depuis Chromium, sans passer par le navigateur.
+                </p>
+                <button class="folder-btn" onclick="downloadInstallScript()" style="width:100%;justify-content:center;gap:8px;">
+                    ⬇️ Télécharger le script d'installation
+                </button>
+                <div id="install-hint" style="display:none;margin-top:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;">
+                    <div style="font-size:.74rem;color:var(--muted);margin-bottom:6px;">Exécutez ensuite dans un terminal :</div>
+                    <code style="font-family:monospace;font-size:.82rem;color:var(--text);">bash ~/Downloads/install-tel-ordi.sh</code>
+                </div>
+            </div>
+
             <div class="status-msg" id="msg"></div>
         </div>
     `;
@@ -954,6 +969,10 @@ function initReceiver() {
     buildReceiverUI();
     initFolderUI();   // async — fills folder-container based on browser support + IndexedDB
     setStatus('wait', 'Initialisation…');
+    if (isLinuxDesktop()) {
+        const card = document.getElementById('linux-install-card');
+        if (card) card.style.display = 'block';
+    }
     startReceiverPeer(getPermId() || undefined);
 }
 
@@ -1256,6 +1275,88 @@ function initSender() {
     });
 }
 
+
+// ─────────────────────────────────────────────
+// LINUX INSTALL
+// ─────────────────────────────────────────────
+function isLinuxDesktop() {
+    const ua = navigator.userAgent;
+    return /Linux/.test(ua) && !/Android/.test(ua);
+}
+
+function downloadInstallScript() {
+    const appUrl = 'https://faunasci.github.io/tel-ordi/';
+    const iconUrl = 'https://faunasci.github.io/tel-ordi/install_linux_icon_chromium/smartphone-icon.png';
+
+    const script = `#!/bin/bash
+set -e
+
+ICON_NAME="smartphone-icon"
+ICON_FILE="\${ICON_NAME}.png"
+DESKTOP_NAME="tel-ordi"
+APP_URL="${appUrl}"
+ICON_URL="${iconUrl}"
+ICONS_DIR="\${HOME}/.local/share/icons"
+APPS_DIR="\${HOME}/.local/share/applications"
+
+echo ""
+echo "╔═══════════════════════════════════════╗"
+echo "║   Installation de l'icône tel-ordi    ║"
+echo "╚═══════════════════════════════════════╝"
+echo ""
+
+mkdir -p "\${ICONS_DIR}" "\${APPS_DIR}"
+
+echo "→ Téléchargement de l'icône..."
+if command -v wget &>/dev/null; then
+    wget -q --show-progress "\${ICON_URL}" -O "\${ICONS_DIR}/\${ICON_FILE}"
+elif command -v curl &>/dev/null; then
+    curl -L --progress-bar "\${ICON_URL}" -o "\${ICONS_DIR}/\${ICON_FILE}"
+else
+    echo "✗ Erreur : wget ou curl est requis."
+    exit 1
+fi
+
+cat > "\${APPS_DIR}/\${DESKTOP_NAME}.desktop" <<DESKTOP
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=tel-ordi
+Comment=Transfert de fichiers téléphone ↔ ordinateur
+Exec=chromium --app=\${APP_URL}
+Icon=\${ICON_NAME}
+Terminal=false
+Categories=Network;WebBrowser;
+Keywords=transfer;fichier;phone;smartphone;
+StartupWMClass=chromium
+DESKTOP
+
+chmod 644 "\${APPS_DIR}/\${DESKTOP_NAME}.desktop"
+
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database "\${APPS_DIR}" 2>/dev/null || true
+fi
+
+echo ""
+echo "✓ Installation réussie !"
+echo "  Icône   → \${ICONS_DIR}/\${ICON_FILE}"
+echo "  Lanceur → \${APPS_DIR}/\${DESKTOP_NAME}.desktop"
+echo ""
+echo "L'application apparaîtra dans votre menu d'applications."
+`;
+
+    const blob = new Blob([script], { type: 'text/x-shellscript' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'install-tel-ordi.sh';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+
+    const hint = document.getElementById('install-hint');
+    if (hint) hint.style.display = 'block';
+}
 
 // ─────────────────────────────────────────────
 // BOOTSTRAP
